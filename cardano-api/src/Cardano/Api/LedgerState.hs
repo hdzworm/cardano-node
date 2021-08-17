@@ -6,6 +6,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Cardano.Api.LedgerState
   ( -- * Initialization / Accumulation
@@ -66,6 +67,7 @@ import           Cardano.Api.IPC (ConsensusModeParams (CardanoModeParams), Epoch
                    LocalChainSyncClient (LocalChainSyncClientPipelined),
                    LocalNodeClientProtocols (..), LocalNodeClientProtocolsInMode,
                    LocalNodeConnectInfo (..), connectToLocalNode)
+import           Cardano.Api.LedgerEvent (LedgerEvent, toLedgerEvent)
 import           Cardano.Api.Modes (CardanoMode)
 import           Cardano.Api.NetworkId (NetworkId (..), NetworkMagic (NetworkMagic))
 import qualified Cardano.Chain.Genesis
@@ -95,7 +97,7 @@ import qualified Ouroboros.Consensus.HardFork.Combinator.AcrossEras as HFC
 import qualified Ouroboros.Consensus.HardFork.Combinator.Basics as HFC
 import qualified Ouroboros.Consensus.Ledger.Abstract as Ledger
 import qualified Ouroboros.Consensus.Ledger.Extended as Ledger
-import           Ouroboros.Consensus.Ledger.Monad (LedgerResult, lrResult, runLedgerT)
+import           Ouroboros.Consensus.Ledger.Monad (LedgerResult (lrEvents), lrResult, runLedgerT)
 import qualified Ouroboros.Consensus.Mempool.TxLimits as TxLimits
 import qualified Ouroboros.Consensus.Node.ProtocolInfo as Consensus
 import qualified Ouroboros.Consensus.Shelley.Eras as Shelley
@@ -110,6 +112,8 @@ import           Ouroboros.Network.Protocol.ChainSync.ClientPipelined
 import           Ouroboros.Network.Protocol.ChainSync.PipelineDecision
 import qualified Shelley.Spec.Ledger.Genesis as Shelley.Spec
 import qualified Shelley.Spec.Ledger.PParams as Shelley.Spec
+import Data.Maybe (mapMaybe)
+import Ouroboros.Consensus.TypeFamilyWrappers (WrapLedgerEvent(WrapLedgerEvent))
 
 data InitialLedgerStateError
   = ILSEConfigFile Text
@@ -580,15 +584,40 @@ newtype LedgerState = LedgerState
                     (Consensus.CardanoEras Consensus.StandardCrypto))
   }
 
--- | Simple alias for a ledger result and any associated events.
-type LedgerStateEvents =
+-- -- | Simple alias for a ledger result and any associated events.
+-- type LedgerStateEvents =
+--   LedgerResult
+--     (Shelley.LedgerState
+--       (HFC.HardForkBlock
+--         (Consensus.CardanoEras Shelley.StandardCrypto)))
+--     (Shelley.LedgerState
+--       (HFC.HardForkBlock
+--         (Consensus.CardanoEras Shelley.StandardCrypto)))
+
+data LedgerStateEvents = LedgerStateEvents
+  { lseState ::
+      Ledger.LedgerState
+        ( HFC.HardForkBlock
+            (Consensus.CardanoEras Consensus.StandardCrypto)
+        ),
+    lseEvents :: [LedgerEvent]
+  }
+
+toLedgerStateEvents ::
   LedgerResult
-    (Shelley.LedgerState
-      (HFC.HardForkBlock
-        (Consensus.CardanoEras Shelley.StandardCrypto)))
-    (Shelley.LedgerState
-      (HFC.HardForkBlock
-        (Consensus.CardanoEras Shelley.StandardCrypto)))
+    ( Shelley.LedgerState
+        (HFC.HardForkBlock (Consensus.CardanoEras Shelley.StandardCrypto))
+    )
+    ( Shelley.LedgerState
+        (HFC.HardForkBlock (Consensus.CardanoEras Shelley.StandardCrypto))
+    ) ->
+  LedgerStateEvents
+toLedgerStateEvents lr = LedgerStateEvents
+  { lseState = lrResult lr
+  , lseEvents = mapMaybe (toLedgerEvent
+      . WrapLedgerEvent @(HFC.HardForkBlock (Consensus.CardanoEras Shelley.StandardCrypto)))
+      $ lrEvents lr
+  }
 
 -- Usually only one constructor, but may have two when we are preparing for a HFC event.
 data GenesisConfig
@@ -895,7 +924,7 @@ applyBlock' env oldState enableValidation block = do
   stateNew <- if enableValidation
     then tickThenApply config block stateOld
     else tickThenReapplyCheckHash config block stateOld
-  return oldState { clsState = lrResult stateNew }
+  return oldState { clsState = lseState stateNew }
 
 applyBlockWithEvents
   :: Env
@@ -924,7 +953,7 @@ tickThenReapplyCheckHash
     -> Either Text LedgerStateEvents
 tickThenReapplyCheckHash cfg block lsb =
   if Consensus.blockPrevHash block == Ledger.ledgerTipHash lsb
-    then Right . runIdentity . runLedgerT
+    then Right . toLedgerStateEvents . runIdentity . runLedgerT
           $ Ledger.tickThenReapplyLedgerM cfg block lsb
     else Left $ mconcat
                   [ "Ledger state hash mismatch. Ledger head is slot "
@@ -958,7 +987,7 @@ tickThenApply
             (Consensus.CardanoEras Shelley.StandardCrypto))
     -> Either Text LedgerStateEvents
 tickThenApply cfg block lsb
-  = either (Left . Text.pack . show) Right
+  = either (Left . Text.pack . show) (Right . toLedgerStateEvents)
   $ runExcept . runLedgerT
   $ Ledger.tickThenApplyLedgerM cfg block lsb
 
