@@ -584,16 +584,6 @@ newtype LedgerState = LedgerState
                     (Consensus.CardanoEras Consensus.StandardCrypto))
   }
 
--- -- | Simple alias for a ledger result and any associated events.
--- type LedgerStateEvents =
---   LedgerResult
---     (Shelley.LedgerState
---       (HFC.HardForkBlock
---         (Consensus.CardanoEras Shelley.StandardCrypto)))
---     (Shelley.LedgerState
---       (HFC.HardForkBlock
---         (Consensus.CardanoEras Shelley.StandardCrypto)))
-
 data LedgerStateEvents = LedgerStateEvents
   { lseState ::
       Ledger.LedgerState
