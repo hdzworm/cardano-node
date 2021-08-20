@@ -83,7 +83,6 @@ import qualified Cardano.Ledger.Credential as Shelley.Spec
 import qualified Cardano.Ledger.Keys as Shelley.Spec
 import           Cardano.Slotting.Slot (WithOrigin (At, Origin))
 import qualified Cardano.Slotting.Slot as Slot
-import           Data.Functor.Identity (runIdentity)
 import           Network.TypedProtocol.Pipelined (Nat (..))
 import qualified Ouroboros.Consensus.Block.Abstract as Consensus
 import qualified Ouroboros.Consensus.Byron.Ledger.Block as Byron
@@ -97,7 +96,7 @@ import qualified Ouroboros.Consensus.HardFork.Combinator.AcrossEras as HFC
 import qualified Ouroboros.Consensus.HardFork.Combinator.Basics as HFC
 import qualified Ouroboros.Consensus.Ledger.Abstract as Ledger
 import qualified Ouroboros.Consensus.Ledger.Extended as Ledger
-import           Ouroboros.Consensus.Ledger.Monad (LedgerResult (lrEvents), lrResult, runLedgerT)
+import           Ouroboros.Consensus.Ledger.Basics (LedgerResult (lrEvents), lrResult)
 import qualified Ouroboros.Consensus.Mempool.TxLimits as TxLimits
 import qualified Ouroboros.Consensus.Node.ProtocolInfo as Consensus
 import qualified Ouroboros.Consensus.Shelley.Eras as Shelley
@@ -943,8 +942,8 @@ tickThenReapplyCheckHash
     -> Either Text LedgerStateEvents
 tickThenReapplyCheckHash cfg block lsb =
   if Consensus.blockPrevHash block == Ledger.ledgerTipHash lsb
-    then Right . toLedgerStateEvents . runIdentity . runLedgerT
-          $ Ledger.tickThenReapplyLedgerM cfg block lsb
+    then Right . toLedgerStateEvents
+          $ Ledger.tickThenReapplyLedgerResult cfg block lsb
     else Left $ mconcat
                   [ "Ledger state hash mismatch. Ledger head is slot "
                   , textShow
@@ -978,8 +977,8 @@ tickThenApply
     -> Either Text LedgerStateEvents
 tickThenApply cfg block lsb
   = either (Left . Text.pack . show) (Right . toLedgerStateEvents)
-  $ runExcept . runLedgerT
-  $ Ledger.tickThenApplyLedgerM cfg block lsb
+  $ runExcept
+  $ Ledger.tickThenApplyLedgerResult cfg block lsb
 
 renderByteArray :: ByteArrayAccess bin => bin -> Text
 renderByteArray =
