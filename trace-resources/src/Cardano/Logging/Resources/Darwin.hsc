@@ -7,6 +7,16 @@ module Cardano.Logging.Resources.Darwin
 
 #include "os-support-darwin.h"
 
+import           Data.Word (Word64)
+import           Foreign.C.Types
+import           Foreign.Marshal.Alloc
+import           Foreign.Ptr
+import           Foreign.Storable
+import qualified GHC.Stats as GhcStats
+import           System.Posix.Process (getProcessID)
+import           System.Posix.Types (ProcessID)
+import           Cardano.Logging.Resources.Types
+
 {- type aliases -}
 type MACH_VM_SIZE_T = Word64
 data TIME_VALUE_T = TIME_VALUE_T Word64 Word64
@@ -81,7 +91,7 @@ readRessoureStatsInternal = getProcessID >>= \pid -> do
   rts <- GhcStats.getRTSStats
   mem <- getMemoryInfo pid
   pure . Just $
-    Resources
+    ResourceStats
     { rCentiCpu   = timeValToCenti (_user_time cpu)
                   + timeValToCenti (_system_time cpu)
     , rCentiGC    = nsToCenti $ GhcStats.gc_cpu_ns rts
@@ -90,7 +100,7 @@ readRessoureStatsInternal = getProcessID >>= \pid -> do
     , rGcsMinor   = fromIntegral $ GhcStats.gcs rts - GhcStats.major_gcs rts
     , rAlloc      = GhcStats.allocated_bytes rts
     , rLive       = GhcStats.gcdetails_live_bytes $ GhcStats.gc rts
-    , rRSS        = fromIntegral (_resident_size mem)
+    , rRSS        = _resident_size mem
     , rCentiBlkIO = 0
     , rThreads    = 0
     }
@@ -98,4 +108,7 @@ readRessoureStatsInternal = getProcessID >>= \pid -> do
    nsToCenti :: GhcStats.RtsTime -> Word64
    nsToCenti = fromIntegral . (`div` 10000000)
    timeValToCenti :: TIME_VALUE_T -> Word64
-   timeValToCenti = fromIntegral . (`div` 10000) . usFromTimeValue
+   timeValToCenti tv = 10000 `div` (usFromTimeValue tv)
+
+usFromTimeValue :: TIME_VALUE_T -> Word64
+usFromTimeValue (TIME_VALUE_T s us) = s * 1000000 + us

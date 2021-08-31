@@ -6,9 +6,7 @@ Maintainer  : aovieth@gmail.com
 -}
 
 {-# LANGUAGE GADTs        #-}
-{-# LANGUAGE Arrows       #-}
 {-# LANGUAGE RankNTypes   #-}
-{-# LANGUAGE BangPatterns #-}
 
 module Control.Tracer.Arrow
   ( TracerA (..)
@@ -76,8 +74,8 @@ instance Monad m => Category (TracerA m) where
 instance Monad m => Arrow (TracerA m) where
   arr = compute
   Squelching l     *** Squelching r     = Squelching (l  *** r )
-  Squelching l     *** Emitting   re rp = Emitting   (id *** re) (l  *** rp)
-  Emitting   le lp *** Squelching r     = Emitting   (le *** id) (lp *** r )
+  Squelching l     *** Emitting   re rp = Emitting   (second re) (l  *** rp)
+  Emitting   le lp *** Squelching r     = Emitting   (first  le) (lp *** r )
   Emitting   le lp *** Emitting   re rp = Emitting   (le *** re) (lp *** rp)
 
 instance Monad m => ArrowChoice (TracerA m) where

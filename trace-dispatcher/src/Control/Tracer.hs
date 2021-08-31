@@ -177,7 +177,7 @@ instance Monad m => Monoid (Tracer m s) where
 {-# INLINE traceWith #-}
 -- | Run a tracer with a given input.
 traceWith :: Monad m => Tracer m a -> a -> m ()
-traceWith (Tracer tr) a = runKleisli (Arrow.runTracerA tr) a
+traceWith (Tracer tr) = runKleisli (Arrow.runTracerA tr)
 
 -- | Inverse of 'use'.
 arrow :: Arrow.TracerA m a () -> Tracer m a

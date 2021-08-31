@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PackageImports      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
